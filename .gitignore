@@ -1,0 +1,9 @@
+venv
+dags/__pycache__
+
+# Ignore Airflow logs
+airflow/logs/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
