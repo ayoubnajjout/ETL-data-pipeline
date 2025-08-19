@@ -6,6 +6,7 @@ import requests
 import json
 import logging
 import time
+from kafka.admin import KafkaAdminClient, NewTopic
 
 default_args = {
     'owner': 'ayub',
@@ -49,7 +50,20 @@ def stream_data_to_kafka():
     producer = None
     start_time = time.time()
     try:
-        producer = KafkaProducer(bootstrap_servers='kafka:9093', api_version=(0, 10, 1))
+        admin_client = KafkaAdminClient(bootstrap_servers='kafka:9093')
+        topic_name = 'user_data'
+        
+        existing_topics = admin_client.list_topics()
+        if topic_name not in existing_topics:
+            topic = NewTopic(name=topic_name, num_partitions=1, replication_factor=1)
+            admin_client.create_topics([topic])
+            logging.info(f"Topic '{topic_name}' created successfully.")
+        else:
+            logging.info(f"Topic '{topic_name}' already exists.")
+        
+        admin_client.close()
+
+        producer = KafkaProducer(bootstrap_servers='kafka:9093')
         while time.time() - start_time < 120:
             data = get_data()
             if data:

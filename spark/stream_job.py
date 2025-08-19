@@ -1,10 +1,20 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, concat_ws
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 spark = SparkSession.builder \
     .appName("KafkaPySparkConsumer") \
-    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
+    .config("spark.jars.packages",
+            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,"
+            "com.datastax.spark:spark-cassandra-connector_2.12:3.5.0") \
+    .config("spark.cassandra.connection.host", "cassandra") \
+    .config("spark.cassandra.connection.port", "9042") \
+    .config("spark.sql.extensions", "com.datastax.spark.connector.CassandraSparkExtensions") \
+    .config("spark.sql.catalog.cassandra", "com.datastax.spark.connector.datasource.CassandraCatalog") \
     .getOrCreate()
 
 spark.sparkContext.setLogLevel("WARN")
@@ -37,5 +47,14 @@ query = df_users.writeStream \
     .outputMode("append") \
     .format("console") \
     .start()
+
+query = df_users.writeStream \
+    .format("org.apache.spark.sql.cassandra") \
+    .outputMode("append") \
+    .option("checkpointLocation", "/tmp/spark-checkpoint") \
+    .option("keyspace", "users_elt") \
+    .option("table", "users") \
+    .start()
+
 
 query.awaitTermination()

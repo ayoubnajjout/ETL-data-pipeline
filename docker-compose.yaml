@@ -18,8 +18,6 @@ x-airflow-common:
     - ./airflow/plugins:/opt/airflow/plugins
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
   depends_on:
-    kafka-topic-creator:
-      condition: service_completed_successfully
     redis:
       condition: service_healthy
     postgres:
@@ -161,10 +159,12 @@ services:
     command: >
       /opt/bitnami/spark/bin/spark-submit
       --master spark://spark-master:7077
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1
-      /opt/spark-apps/job.py
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,com.datastax.spark:spark-cassandra-connector_2.12:3.5.0
+
+      /opt/spark-apps/stream_job.py
     depends_on:
       - spark-master
+      - cassandra-schema-init
     networks:
       - elt-pipeline
 
@@ -197,19 +197,17 @@ services:
     networks:
       - elt-pipeline
 
-  kafka-topic-creator:
-    image: confluentinc/cp-kafka:7.4.0
-    depends_on:
-      - kafka
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_INSTALL_PLUGINS=hadesarchitect-cassandra-datasource
     networks:
       - elt-pipeline
-    command: >
-      bash -c "
-        echo 'Waiting for Kafka to be ready...' &&
-        cub kafka-ready -b kafka:9093 1 20 &&
-        echo 'Kafka is ready!' &&
-        kafka-topics --create --topic user_data --bootstrap-server kafka:9093 --partitions 1 --replication-factor 1
-      "
+    depends_on:
+      - cassandra
 
   cassandra:
     image: cassandra:3.11
@@ -223,6 +221,23 @@ services:
       CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
     volumes:
       - cassandra-db-volume:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks:
+      - elt-pipeline
+
+  cassandra-schema-init:
+    image: cassandra:3.11
+    container_name: cassandra-schema-init
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    volumes:
+      - ./cassandra:/scripts
+    command: /bin/bash -c "sleep 10 && cqlsh cassandra -f /scripts/init.cql"
     networks:
       - elt-pipeline
 
