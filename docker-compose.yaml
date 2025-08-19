@@ -18,6 +18,8 @@ x-airflow-common:
     - ./airflow/plugins:/opt/airflow/plugins
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
   depends_on:
+    kafka-topic-creator:
+      condition: service_completed_successfully
     redis:
       condition: service_healthy
     postgres:
@@ -134,6 +136,54 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
     networks:
       - elt-pipeline
+
+  spark-master:
+    image: bitnami/spark:3.4
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - "8081:8080"
+      - "7077:7077"
+    volumes:
+      - ./spark:/opt/spark-apps
+    networks:
+      - elt-pipeline
+
+  spark-job-submit:
+    image: bitnami/spark:3.4
+    volumes:
+      - ./spark:/opt/spark-apps
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --master spark://spark-master:7077
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1
+      /opt/spark-apps/job.py
+    depends_on:
+      - spark-master
+    networks:
+      - elt-pipeline
+
+  spark-worker:
+    image: bitnami/spark:3.4
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    depends_on:
+      - spark-master
+    networks:
+      - elt-pipeline
       
   kafka-ui:
     image: obsidiandynamics/kafdrop
@@ -147,8 +197,39 @@ services:
     networks:
       - elt-pipeline
 
+  kafka-topic-creator:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - kafka
+    networks:
+      - elt-pipeline
+    command: >
+      bash -c "
+        echo 'Waiting for Kafka to be ready...' &&
+        cub kafka-ready -b kafka:9093 1 20 &&
+        echo 'Kafka is ready!' &&
+        kafka-topics --create --topic user_data --bootstrap-server kafka:9093 --partitions 1 --replication-factor 1
+      "
+
+  cassandra:
+    image: cassandra:3.11
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: "Test Cluster"
+      CASSANDRA_DC: "datacenter1"
+      CASSANDRA_RACK: "rack1"
+      CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
+    volumes:
+      - cassandra-db-volume:/var/lib/cassandra
+    networks:
+      - elt-pipeline
+
 volumes:
   postgres-db-volume:
+  cassandra-db-volume:
+    driver: local
 
 networks:
   elt-pipeline:

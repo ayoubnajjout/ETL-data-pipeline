@@ -8,14 +8,20 @@ import logging
 import time
 
 default_args = {
-    'owner': 'airscholar',
+    'owner': 'ayub',
     'start_date': datetime.datetime(2025, 8, 17, 10, 00)
 }
 
 def get_data():
     res = requests.get('https://randomuser.me/api/')
     res.raise_for_status() 
-    res_json = res.json()['results'][0]
+    
+    results = res.json().get('results')
+    if not results:
+        logging.warning("API returned no results")
+        return None
+
+    res_json = results[0]
     
     user_name = res_json['name']["first"] + " " + res_json['name']["last"]
     user_email = res_json['email']
@@ -43,14 +49,14 @@ def stream_data_to_kafka():
     producer = None
     start_time = time.time()
     try:
-        # Adding api_version can help with compatibility issues
         producer = KafkaProducer(bootstrap_servers='kafka:9093', api_version=(0, 10, 1))
         while time.time() - start_time < 120:
             data = get_data()
-            logging.info(f"Sending data to Kafka: {data}")
-            producer.send('user_data', json.dumps(data).encode('utf-8'))
-            producer.flush()
-            logging.info("Data sent to Kafka successfully.")
+            if data:
+                logging.info(f"Sending data to Kafka: {data}")
+                producer.send('user_data', json.dumps(data).encode('utf-8'))
+                producer.flush()
+                logging.info("Data sent to Kafka successfully.")
             time.sleep(1)
     except Exception as e:
         logging.error(f"Error sending data to Kafka: {e}")
