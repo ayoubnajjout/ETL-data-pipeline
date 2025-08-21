@@ -38,14 +38,14 @@ This project implements a robust ELT (Extract, Load, Transform) data pipeline us
 
 ### Setup
 1. **Clone the repository:**
-   ```sh
+```sh
 git clone https://github.com/ayoubnajjout/ETL-data-pipeline.git
 cd ETL-data-pipeline
-      ```
+```
 2. **Start the services:**
-   ```sh
+```sh
 docker-compose up --build
-   ```
+```
 3. **Access Airflow UI:**
    - Navigate to `http://localhost:8080` in your browser.
 
