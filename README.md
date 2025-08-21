@@ -41,7 +41,7 @@ This project implements a robust ELT (Extract, Load, Transform) data pipeline us
    ```sh
 git clone https://github.com/ayoubnajjout/ETL-data-pipeline.git
 cd ETL-data-pipeline
-   ```
+      ```
 2. **Start the services:**
    ```sh
 docker-compose up --build
