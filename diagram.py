@@ -4,7 +4,6 @@ from diagrams.onprem.queue import Kafka
 from diagrams.onprem.database import Cassandra, Postgresql
 from diagrams.onprem.analytics import Spark
 from diagrams.onprem.inmemory import Redis
-from diagrams.onprem.monitoring import Grafana
 from diagrams.onprem.client import User, Client # Now importing Client for the UIs
 from diagrams.programming.language import Python
 from diagrams.generic.compute import Rack
@@ -13,7 +12,6 @@ with Diagram("ELT Pipeline Detailed Architecture", show=False, direction="TB") a
     user = User("Random User API")
    
     with Cluster("Monitoring & UIs"):
-        grafana = Grafana("Grafana")
         # Changed from Python to Client to get a more generic UI icon
         flower = Client("Flower UI")
         kafka_ui = Client("Kafka UI")
@@ -58,6 +56,5 @@ with Diagram("ELT Pipeline Detailed Architecture", show=False, direction="TB") a
     spark_workers >> cassandra
    
     # Monitoring Connections
-    cassandra >> grafana
     airflow_worker >> flower
     kafka >> kafka_ui

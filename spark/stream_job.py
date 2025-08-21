@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col, concat_ws
+from pyspark.sql.functions import from_json, col, concat_ws, current_timestamp
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 import logging
 
@@ -48,7 +48,9 @@ query = df_users.writeStream \
     .format("console") \
     .start()
 
-query = df_users.writeStream \
+processed_df = df_users.withColumn("created_at", current_timestamp())
+
+query = processed_df.writeStream \
     .format("org.apache.spark.sql.cassandra") \
     .outputMode("append") \
     .option("checkpointLocation", "/tmp/spark-checkpoint") \
